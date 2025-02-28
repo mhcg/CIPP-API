@@ -2,7 +2,7 @@ function Set-CIPPAssignedPolicy {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         $GroupName,
-        $excludeGroup,
+        $ExcludeGroup,
         $PolicyId,
         $Type,
         $TenantFilter,
@@ -52,15 +52,15 @@ function Set-CIPPAssignedPolicy {
             }
             default {
                 Write-Host "We're supposed to assign a custom group. The group is $GroupName"
-                $GroupNames = $GroupName.Split(',')
+                $GroupNames = $GroupName.Split(',').Trim()
                 $GroupIds = New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/groups?$select=id,displayName&$top=999' -tenantid $TenantFilter |
-                ForEach-Object {
-                    foreach ($SingleName in $GroupNames) {
-                        if ($_.displayName -like $SingleName) {
-                            $_.id
+                    ForEach-Object {
+                        foreach ($SingleName in $GroupNames) {
+                            if ($_.displayName -like $SingleName) {
+                                $_.id
+                            }
                         }
                     }
-                }
                 foreach ($gid in $GroupIds) {
                     $assignmentsList.Add(
                         @{
@@ -73,16 +73,17 @@ function Set-CIPPAssignedPolicy {
                 }
             }
         }
-        if ($excludeGroup) {
-            $ExcludeGroupNames = $excludeGroup.Split(',')
+        if ($ExcludeGroup) {
+            Write-Host "We're supposed to exclude a custom group. The group is $ExcludeGroup"
+            $ExcludeGroupNames = $ExcludeGroup.Split(',').Trim()
             $ExcludeGroupIds = New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/groups?$select=id,displayName&$top=999' -tenantid $TenantFilter |
-            ForEach-Object {
-                foreach ($SingleName in $ExcludeGroupNames) {
-                    if ($_.displayName -like $SingleName) {
-                        $_.id
+                ForEach-Object {
+                    foreach ($SingleName in $ExcludeGroupNames) {
+                        if ($_.displayName -like $SingleName) {
+                            $_.id
+                        }
                     }
                 }
-            }
 
             foreach ($egid in $ExcludeGroupIds) {
                 $assignmentsList.Add(
@@ -104,9 +105,12 @@ function Set-CIPPAssignedPolicy {
         Write-Host "AssignJSON: $AssignJSON"
         if ($PSCmdlet.ShouldProcess($GroupName, "Assigning policy $PolicyId")) {
             $uri = "https://graph.microsoft.com/beta/$($PlatformType)/$Type('$($PolicyId)')/assign"
-            Write-Host "Calling: $uri"
             $null = New-GraphPOSTRequest -uri $uri -tenantid $TenantFilter -type POST -body $AssignJSON
-            Write-LogMessage -headers $Headers -API $APIName -message "Assigned $GroupName and excluded $excludeGroup to Policy $PolicyId" -Sev 'Info' -tenant $TenantFilter
+            if ($ExcludeGroup) {
+                Write-LogMessage -headers $Headers -API $APIName -message "Assigned group '$GroupName' and excluded group '$ExcludeGroup' on Policy $PolicyId" -Sev 'Info' -tenant $TenantFilter
+            } else {
+                Write-LogMessage -headers $Headers -API $APIName -message "Assigned group '$GroupName' on Policy $PolicyId" -Sev 'Info' -tenant $TenantFilter
+            }
         }
 
     } catch {

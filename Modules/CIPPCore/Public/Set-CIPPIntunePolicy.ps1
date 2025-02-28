@@ -6,7 +6,7 @@ function Set-CIPPIntunePolicy {
         $DisplayName,
         $RawJSON,
         $AssignTo,
-        $excludeGroup,
+        $ExcludeGroup,
         $Headers,
         $APINAME,
         $tenantFilter
@@ -135,6 +135,25 @@ function Set-CIPPIntunePolicy {
                     Write-LogMessage -headers $Headers -API $APINAME -tenant $($tenantFilter) -message "Added policy $($DisplayName) via template" -Sev 'info'
                 }
             }
+            'windowsFeatureUpdateProfiles' {
+                $PlatformType = 'deviceManagement'
+                $TemplateTypeURL = 'windowsFeatureUpdateProfiles'
+                $File = ($RawJSON | ConvertFrom-Json)
+                $DisplayName = $File.displayName ?? $File.Name
+                $CheckExististing = New-GraphGETRequest -uri "https://graph.microsoft.com/beta/$PlatformType/$TemplateTypeURL" -tenantid $tenantFilter
+                if ($DisplayName -in $CheckExististing.displayName) {
+                    $PostType = 'edited'
+                    $ExistingID = $CheckExististing | Where-Object -Property displayName -EQ $displayname
+                    Write-Host 'We are editing'
+                    $CreateRequest = New-GraphPOSTRequest -uri "https://graph.microsoft.com/beta/$PlatformType/$TemplateTypeURL/$($ExistingID.Id)" -tenantid $tenantFilter -type PUT -body $RawJSON
+                    $CreateRequest = $CheckExististing | Where-Object -Property displayName -EQ $DisplayName
+
+                } else {
+                    $PostType = 'added'
+                    $CreateRequest = New-GraphPOSTRequest -uri "https://graph.microsoft.com/beta/$PlatformType/$TemplateTypeURL" -tenantid $tenantFilter -type POST -body $RawJSON
+                    Write-LogMessage -headers $Headers -API $APINAME -tenant $($tenantFilter) -message "Added policy $($DisplayName) via template" -Sev 'info'
+                }
+            }
 
         }
         Write-LogMessage -headers $Headers -API $APINAME -tenant $($tenantFilter) -message "$($PostType) policy $($Displayname)" -Sev 'Info'
@@ -142,7 +161,7 @@ function Set-CIPPIntunePolicy {
             Write-Host "Assigning policy to $($AssignTo) with ID $($CreateRequest.id) and type $TemplateTypeURL for tenant $tenantFilter"
             Write-Host "ID is $($CreateRequest.id)"
 
-            Set-CIPPAssignedPolicy -GroupName $AssignTo -PolicyId $CreateRequest.id -PlatformType $PlatformType -Type $TemplateTypeURL -TenantFilter $tenantFilter -excludeGroup $excludeGroup
+            Set-CIPPAssignedPolicy -GroupName $AssignTo -PolicyId $CreateRequest.id -PlatformType $PlatformType -Type $TemplateTypeURL -TenantFilter $tenantFilter -ExcludeGroup $ExcludeGroup
         }
         return "Successfully $($PostType) policy for $($tenantFilter) with display name $($Displayname)"
     } catch {
