@@ -27,7 +27,7 @@ function Invoke-ListLogs {
         if ($request.Query.Filter -eq 'True') {
             $LogLevel = if ($Request.Query.Severity) { ($Request.query.Severity).split(',') } else { 'Info', 'Warn', 'Error', 'Critical', 'Alert' }
             $PartitionKey = $Request.Query.DateFilter
-            $username = $Request.Query.User
+            $username = $Request.Query.User ?? '*'
 
             $StartDate = $Request.Query.StartDate ?? $Request.Query.DateFilter
             $EndDate = $Request.Query.EndDate ?? $Request.Query.DateFilter
@@ -53,7 +53,7 @@ function Invoke-ListLogs {
         $AllowedTenants = Test-CIPPAccess -Request $Request -TenantList
         Write-Host "Getting logs for filter: $Filter, LogLevel: $LogLevel, Username: $username"
 
-        $Rows = Get-AzDataTableEntity @Table -Filter $Filter | Where-Object { $_.Severity -in $LogLevel -and $_.user -like $username }
+        $Rows = Get-AzDataTableEntity @Table -Filter $Filter | Where-Object { $_.Severity -in $LogLevel -and $_.Username -like $username }
         foreach ($Row in $Rows) {
             if ($AllowedTenants -notcontains 'AllTenants') {
                 $TenantList = Get-Tenants -IncludeErrors
